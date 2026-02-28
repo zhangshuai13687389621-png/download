@@ -37,8 +37,8 @@ jobs:
           echo "Upgrading pip..."
           python -m pip install --upgrade pip
           
-          echo "Downloading ${{ github.event.inputs.package_name }} and all dependencies..."
-          python -m pip download "${{ github.event.inputs.package_name }}"
+          echo "Downloading ${{ github.event.inputs.package_name }} and required packages (catboost, statsmodels, pyecharts) along with dependencies..."
+          python -m pip download "${{ github.event.inputs.package_name }}" catboost statsmodels pyecharts
           
           cd ..
 
