@@ -51,9 +51,9 @@ sudo systemctl status cron
 
 ---
 
-## 2. 离线安装 Python 3.8.20 及 Kazoo 包
+## 2. 离线安装 Python 3.8 及 Kazoo 包
 
-从 GitHub Actions 的 Artifacts 下载对应打包出来的 `kazoo-py3.8.20-ubuntu-offline.zip`（解压后会得到类似 `ubuntu-python-3.8.20-kazoo-offline.tar.gz`）。
+从 GitHub Actions 的 Artifacts 下载对应打包出来的 `kazoo-py3.8-ubuntu-offline.zip`（解压后会得到类似 `ubuntu-python-3.8-kazoo-offline.tar.gz`）。
 
 > **注意：** GitHub Actions 提供下载的所有 Python 依赖都是给 **Python 3.8 或更高版本准备的 `.whl` 或 `tar.gz` 文件**。这代表您的目标 Ubuntu 服务器必须事先已经安装好对应的 Python 环境。如果没有请先离线安装指定的 Python 3 环境。
 
@@ -67,7 +67,7 @@ sudo systemctl status cron
 mkdir -p /opt/offline/python_pkgs
 cd /opt/offline/python_pkgs
 
-tar -zxvf /上传的路径/ubuntu-python-3.8.20-kazoo-offline.tar.gz
+tar -zxvf /上传的路径/ubuntu-python-3.8-kazoo-offline.tar.gz
 ```
 
 **3. 离线安装依赖包**  

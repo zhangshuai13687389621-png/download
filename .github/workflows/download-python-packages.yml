@@ -8,9 +8,9 @@ on:
         required: true
         default: 'kazoo'
       python_version:
-        description: 'Python version to use for downloading (e.g., 3.8.20)'
+        description: 'Python version to use for downloading (e.g., 3.8, 3.9)'
         required: true
-        default: '3.8.20'
+        default: '3.8'
       os_version:
         description: 'Ubuntu version for the runner (e.g. ubuntu-20.04, ubuntu-22.04, ubuntu-24.04)'
         required: true
