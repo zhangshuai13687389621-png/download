@@ -37,33 +37,37 @@ jobs:
           # 运行一个临时容器来打印内部的操作系统版本信息
           docker run --rm ccr.ccs.tencentyun.com/cube-studio/notebook:jupyter-ubuntu-bigdata cat /etc/os-release
           
-      - name: Generate and Print Dockerfile
+      - name: Generate and Extract files
         run: |
-          # 运行 laniksj/dfimage 逆向生成 Dockerfile，并不再写入文件，直接输出在 Action 运行日志中
-          docker run -v /var/run/docker.sock:/var/run/docker.sock --rm \
-            laniksj/dfimage ccr.ccs.tencentyun.com/cube-studio/notebook:jupyter-ubuntu-bigdata
+          # 定义镜像名称和整理后的输出目录名
+          IMAGE="ccr.ccs.tencentyun.com/cube-studio/notebook:jupyter-ubuntu-bigdata"
+          TARGET_DIR="notebook-jupyter-ubuntu-bigdata"
+          
+          # 创建统一存放它的父文件夹
+          mkdir -p "$TARGET_DIR"
+          
+          # 1. 运行 laniksj/dfimage 逆向生成 Dockerfile，并重定向到目标目录中
+          docker run -v /var/run/docker.sock:/var/run/docker.sock --rm laniksj/dfimage "$IMAGE" > "$TARGET_DIR/Dockerfile.generated"
 
-      - name: Extract key files from the image
-        run: |
-          # 创建临时容器而不启动它
-          docker create --name temp_container ccr.ccs.tencentyun.com/cube-studio/notebook:jupyter-ubuntu-bigdata
+          # 2. 创建临时容器
+          docker create --name temp_container "$IMAGE"
           
-          # 在本地创建文件夹来存放提取出的文件（保持部分目录结构方便查看）
-          mkdir -p extracted_files/opt/third/maven/conf
-          mkdir -p extracted_files/opt/third/hadoop/etc
-          mkdir -p extracted_files/opt/third/hive/conf
-          mkdir -p extracted_files/opt/third/flink
-          mkdir -p extracted_files/examples
+          # 3. 在目标目录下创立 extracted_files 的对应目录树
+          EXTRACT_PATH="$TARGET_DIR/extracted_files"
+          mkdir -p "$EXTRACT_PATH/opt/third/maven/conf"
+          mkdir -p "$EXTRACT_PATH/opt/third/hadoop/etc"
+          mkdir -p "$EXTRACT_PATH/opt/third/hive/conf"
+          mkdir -p "$EXTRACT_PATH/opt/third/flink"
+          mkdir -p "$EXTRACT_PATH/examples"
           
-          # 从容器中将所需文件拷贝到宿主机的本地目录
-          docker cp temp_container:/init.sh ./extracted_files/
-          docker cp temp_container:/opt/third/maven/conf/settings.xml ./extracted_files/opt/third/maven/conf/
-          docker cp temp_container:/opt/third/hadoop/etc/hadoop ./extracted_files/opt/third/hadoop/etc/
+          # 4. 从容器提取所有指出的配置文件到这里
+          docker cp temp_container:/init.sh "$EXTRACT_PATH/"
+          docker cp temp_container:/opt/third/maven/conf/settings.xml "$EXTRACT_PATH/opt/third/maven/conf/"
+          docker cp temp_container:/opt/third/hadoop/etc/hadoop "$EXTRACT_PATH/opt/third/hadoop/etc/"
           
-          # 提取新发现的其他散落的配置文件和示例文件 (以防万一原作者写死了特殊逻辑)
-          docker cp temp_container:/opt/third/hive/conf/. ./extracted_files/opt/third/hive/conf/ 2>/dev/null || true
-          docker cp temp_container:/opt/third/flink/flink-conf.yaml ./extracted_files/opt/third/flink/ 2>/dev/null || true
-          docker cp temp_container:/examples/. ./extracted_files/examples/ 2>/dev/null || true
+          docker cp temp_container:/opt/third/hive/conf/. "$EXTRACT_PATH/opt/third/hive/conf/" 2>/dev/null || true
+          docker cp temp_container:/opt/third/flink/flink-conf.yaml "$EXTRACT_PATH/opt/third/flink/" 2>/dev/null || true
+          docker cp temp_container:/examples/. "$EXTRACT_PATH/examples/" 2>/dev/null || true
           
           # 清理临时容器
           docker rm temp_container
@@ -71,5 +75,5 @@ jobs:
       - name: Auto Commit changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "Auto-extract config files from remote image"
-          file_pattern: "extracted_files/**"
+          commit_message: "Auto-extract Dockerfile and config files to notebook-jupyter-ubuntu-bigdata format"
+          file_pattern: "notebook-jupyter-ubuntu-bigdata/**"
