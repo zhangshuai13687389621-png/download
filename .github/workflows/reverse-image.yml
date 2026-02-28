@@ -72,8 +72,15 @@ jobs:
           # 清理临时容器
           docker rm temp_container
 
-      - name: Auto Commit changes
-        uses: stefanzweifel/git-auto-commit-action@v5
+      - name: Archive extracted files
+        run: |
+          TARGET_DIR="notebook-jupyter-ubuntu-bigdata"
+          echo "Compressing extracted files..."
+          tar -czvf ${TARGET_DIR}.tar.gz -C "$TARGET_DIR" .
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
         with:
-          commit_message: "Auto-extract Dockerfile and config files to notebook-jupyter-ubuntu-bigdata format"
-          file_pattern: "notebook-jupyter-ubuntu-bigdata/**"
+          name: notebook-jupyter-ubuntu-bigdata-extracted
+          path: notebook-jupyter-ubuntu-bigdata.tar.gz
+          retention-days: 7
