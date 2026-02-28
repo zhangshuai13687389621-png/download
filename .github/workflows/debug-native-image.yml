@@ -1,0 +1,35 @@
+name: Debug Native Container Image
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug-image:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Free up runner disk space
+        run: |
+          docker system prune -a -f
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
+
+      - name: Inspect target image environment
+        run: |
+          IMAGE="ccr.ccs.tencentyun.com/cube-studio/notebook:jupyter-ubuntu-bigdata"
+          docker pull "$IMAGE"
+          
+          # Print OS release info, glibc version, and apt sources
+          docker run --rm "$IMAGE" bash -c "
+            echo '=== OS RELEASE ==='
+            cat /etc/os-release
+            
+            echo -e '\n=== GLIBC VERSION ==='
+            ldd --version | head -n 1
+            
+            echo -e '\n=== APT SOURCES ==='
+            cat /etc/apt/sources.list
+            
+            echo -e '\n=== APT CACHE POLICY FOR CRON ==='
+            apt-get update -qq
+            apt-cache policy cron
+          "
