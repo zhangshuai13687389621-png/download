@@ -37,11 +37,11 @@ jobs:
           # 运行一个临时容器来打印内部的操作系统版本信息
           docker run --rm ccr.ccs.tencentyun.com/cube-studio/notebook:jupyter-ubuntu-bigdata cat /etc/os-release
           
-      - name: Generate Dockerfile
+      - name: Generate and Print Dockerfile
         run: |
-          # 运行 laniksj/dfimage 逆向生成 Dockerfile，并重定向到仓库根目录
+          # 运行 laniksj/dfimage 逆向生成 Dockerfile，并不再写入文件，直接输出在 Action 运行日志中
           docker run -v /var/run/docker.sock:/var/run/docker.sock --rm \
-            laniksj/dfimage ccr.ccs.tencentyun.com/cube-studio/notebook:jupyter-ubuntu-bigdata > Dockerfile.generated
+            laniksj/dfimage ccr.ccs.tencentyun.com/cube-studio/notebook:jupyter-ubuntu-bigdata
 
       - name: Extract key files from the image
         run: |
@@ -71,5 +71,5 @@ jobs:
       - name: Auto Commit changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "Auto-extract Dockerfile and config files from remote image"
-          file_pattern: "Dockerfile.generated extracted_files/**"
+          commit_message: "Auto-extract config files from remote image"
+          file_pattern: "extracted_files/**"
