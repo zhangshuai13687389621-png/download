@@ -1,4 +1,4 @@
-name: Download Python Packages (CentOS 7)
+name: Download Python Packages (Ubuntu)
 
 on:
   workflow_dispatch:
@@ -11,84 +11,50 @@ on:
         description: 'Python version to use for downloading (e.g., 3.8.20)'
         required: true
         default: '3.8.20'
+      os_version:
+        description: 'Ubuntu version for the runner (e.g. ubuntu-20.04, ubuntu-22.04, ubuntu-24.04)'
+        required: true
+        default: 'ubuntu-22.04'
 
 jobs:
   download-and-package:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.inputs.os_version }}
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download python packages using CentOS 7 Docker container
+      - name: Set up Python ${{ github.event.inputs.python_version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ github.event.inputs.python_version }}
+
+      - name: Download python packages
         run: |
           mkdir -p python-offline-packages
+          cd python-offline-packages
           
-          # Create a script to run inside the CentOS 7 container
-          cat << 'EOF' > download_python_pkgs.sh
-          #!/bin/bash
-          set -e
+          echo "Upgrading pip..."
+          python -m pip install --upgrade pip
           
-          PACKAGE_NAME="$1"
-          PYTHON_VER="$2"
+          echo "Downloading ${{ github.event.inputs.package_name }} and all dependencies..."
+          python -m pip download "${{ github.event.inputs.package_name }}"
           
-          echo "Updating repositories and installing dependencies for building Python..."
-          
-          # Fix CentOS 7 repos since it reached EOL and moved to vault
-          sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
-          sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
-          
-          yum clean all
-          yum makecache
-          
-          # Install dependencies to build python and download SSL certificates
-          yum install -y gcc openssl-devel bzip2-devel libffi-devel zlib-devel wget make ca-certificates
-          update-ca-trust force-enable
-          
-          echo "Downloading Python ${PYTHON_VER}..."
-          wget --no-check-certificate https://www.python.org/ftp/python/${PYTHON_VER}/Python-${PYTHON_VER}.tgz
-          tar xzf Python-${PYTHON_VER}.tgz
-          
-          echo "Building Python ${PYTHON_VER} from source..."
-          cd Python-${PYTHON_VER}
-          ./configure --enable-optimizations
-          make altinstall
           cd ..
-          
-          # Find the exact installed python executable
-          PYTHON_CMD=$(ls /usr/local/bin/python3.* | grep -v 'config' | head -n 1)
-          echo "Using Python executable: $PYTHON_CMD"
-          
-          # Upgrade pip to latest version compatible with 3.8 to avoid download issues
-          $PYTHON_CMD -m pip install --upgrade pip
-          
-          echo "Downloading $PACKAGE_NAME and all dependencies as wheel/tar.gz files..."
-          # Download the package and its dependencies into the mapped output folder
-          $PYTHON_CMD -m pip download -d /output "$PACKAGE_NAME"
-          EOF
-          
-          chmod +x download_python_pkgs.sh
-          
-          # Run the script inside the CentOS 7 container
-          docker run --rm \
-            -v $(pwd)/python-offline-packages:/output \
-            -v $(pwd)/download_python_pkgs.sh:/download_python_pkgs.sh \
-            centos:7 \
-            /download_python_pkgs.sh "${{ github.event.inputs.package_name }}" "${{ github.event.inputs.python_version }}"
 
       - name: Package downloaded wheel/tar.gz files
         run: |
           echo "Compressing downloaded Python files..."
-          tar -czvf centos7-python-${{ github.event.inputs.python_version }}-${{ github.event.inputs.package_name }}-offline.tar.gz -C python-offline-packages .
+          tar -czvf ubuntu-python-${{ github.event.inputs.python_version }}-${{ github.event.inputs.package_name }}-offline.tar.gz -C python-offline-packages .
 
       - name: Prepare safe artifact name
         id: prep
         run: |
-          echo "ARTIFACT_NAME=${{ github.event.inputs.package_name }}-py${{ github.event.inputs.python_version }}-centos7-offline" >> $GITHUB_ENV
+          echo "ARTIFACT_NAME=${{ github.event.inputs.package_name }}-py${{ github.event.inputs.python_version }}-ubuntu-offline" >> $GITHUB_ENV
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT_NAME }}
-          path: centos7-python-${{ github.event.inputs.python_version }}-${{ github.event.inputs.package_name }}-offline.tar.gz
+          path: ubuntu-python-${{ github.event.inputs.python_version }}-${{ github.event.inputs.package_name }}-offline.tar.gz
           retention-days: 7
