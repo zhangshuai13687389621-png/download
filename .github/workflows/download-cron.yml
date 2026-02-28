@@ -1,0 +1,53 @@
+name: Download Cron and Dependencies
+
+on:
+  workflow_dispatch:
+    inputs:
+      os_version:
+        description: 'Ubuntu version for the runner (e.g. ubuntu-20.04, ubuntu-22.04, ubuntu-24.04)'
+        required: true
+        default: 'ubuntu-22.04'
+
+jobs:
+  download-and-package:
+    runs-on: ${{ github.event.inputs.os_version }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download cron and all its recursive dependencies
+        run: |
+          echo "Updating apt repository..."
+          sudo apt-get update
+          
+          echo "Installing apt-rdepends to resolve recursive dependencies..."
+          sudo apt-get install -y apt-rdepends
+          
+          mkdir -p cron-offline-packages
+          cd cron-offline-packages
+          
+          echo "Getting list of all dependencies for cron..."
+          # Fetch all dependent package names recursively
+          # Filter out the dependency descriptors (which start with a space)
+          PACKAGES=$(apt-rdepends cron 2>/dev/null | grep -v "^ ")
+          
+          echo "Downloading packages..."
+          for pkg in $PACKAGES; do
+            # Download the package; ignore errors for virtual packages that can't be downloaded directly
+            apt-get download "$pkg" 2>/dev/null || echo "Notice: Could not download $pkg (likely a virtual package or already satisfied)."
+          done
+          
+          cd ..
+
+      - name: Package downloaded deb files
+        run: |
+          echo "Compressing downloaded files..."
+          tar -czvf cron-offline-packages.tar.gz -C cron-offline-packages .
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cron-offline-packages-${{ github.event.inputs.os_version }}
+          path: cron-offline-packages.tar.gz
+          retention-days: 7
