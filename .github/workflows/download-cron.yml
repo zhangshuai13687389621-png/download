@@ -1,53 +1,79 @@
-name: Download Cron and Dependencies
+name: Download Cron and Dependencies (CentOS/RHEL)
 
 on:
   workflow_dispatch:
     inputs:
-      os_version:
-        description: 'Ubuntu version for the runner (e.g. ubuntu-20.04, ubuntu-22.04, ubuntu-24.04)'
+      os_image:
+        description: 'Docker image to use (e.g., centos:7, rockylinux:8, rockylinux:9)'
         required: true
-        default: 'ubuntu-22.04'
+        default: 'centos:7'
+      package_name:
+        description: 'Package name to download (e.g., cronie for CentOS)'
+        required: true
+        default: 'cronie'
 
 jobs:
   download-and-package:
-    runs-on: ${{ github.event.inputs.os_version }}
+    runs-on: ubuntu-latest
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download cron and all its recursive dependencies
+      - name: Download packages using Docker container
         run: |
-          echo "Updating apt repository..."
-          sudo apt-get update
+          mkdir -p offline-packages
           
-          echo "Installing apt-rdepends to resolve recursive dependencies..."
-          sudo apt-get install -y apt-rdepends
+          # Create a script to run inside the CentOS/RHEL container
+          cat << 'EOF' > download.sh
+          #!/bin/bash
+          set -e
           
-          mkdir -p cron-offline-packages
-          cd cron-offline-packages
+          PACKAGE_NAME="$1"
           
-          echo "Getting list of all dependencies for cron..."
-          # Fetch all dependent package names recursively
-          # Filter out the dependency descriptors (which start with a space)
-          PACKAGES=$(apt-rdepends cron 2>/dev/null | grep -v "^ ")
+          echo "Updating repositories and installing download tools..."
           
-          echo "Downloading packages..."
-          for pkg in $PACKAGES; do
-            # Download the package; ignore errors for virtual packages that can't be downloaded directly
-            apt-get download "$pkg" 2>/dev/null || echo "Notice: Could not download $pkg (likely a virtual package or already satisfied)."
-          done
+          # Fix CentOS 7 repos since it reached EOL and moved to vault
+          if grep -q "CentOS Linux 7" /etc/os-release 2>/dev/null; then
+            sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
+            sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
+            yum clean all
+            yum makecache
+            yum install -y yum-utils
+            echo "Downloading $PACKAGE_NAME and dependencies..."
+            yumdownloader --resolve --destdir=/output "$PACKAGE_NAME"
+          else
+            # For CentOS 8/9, RockyLinux, AlmaLinux
+            dnf install -y dnf-plugins-core
+            echo "Downloading $PACKAGE_NAME and dependencies..."
+            dnf download --resolve --alldeps --destdir=/output "$PACKAGE_NAME" || dnf download --resolve --destdir=/output "$PACKAGE_NAME"
+          fi
+          EOF
           
-          cd ..
+          chmod +x download.sh
+          
+          # Run the script inside the target OS container
+          docker run --rm \
+            -v $(pwd)/offline-packages:/output \
+            -v $(pwd)/download.sh:/download.sh \
+            ${{ github.event.inputs.os_image }} \
+            /download.sh "${{ github.event.inputs.package_name }}"
 
-      - name: Package downloaded deb files
+      - name: Package downloaded RPM files
         run: |
           echo "Compressing downloaded files..."
-          tar -czvf cron-offline-packages.tar.gz -C cron-offline-packages .
+          tar -czvf offline-packages.tar.gz -C offline-packages .
+
+      - name: Prepare safe artifact name
+        id: prep
+        run: |
+          IMAGE_NAME="${{ github.event.inputs.os_image }}"
+          SAFE_NAME="${IMAGE_NAME//:/-}"
+          echo "ARTIFACT_NAME=${{ github.event.inputs.package_name }}-offline-packages-${SAFE_NAME}" >> $GITHUB_ENV
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: cron-offline-packages-${{ github.event.inputs.os_version }}
-          path: cron-offline-packages.tar.gz
+          name: ${{ env.ARTIFACT_NAME }}
+          path: offline-packages.tar.gz
           retention-days: 7
