@@ -32,6 +32,11 @@ jobs:
         run: |
           docker pull ccr.ccs.tencentyun.com/cube-studio/notebook:jupyter-ubuntu-bigdata
 
+      - name: Inspect Operating System
+        run: |
+          # 运行一个临时容器来打印内部的操作系统版本信息
+          docker run --rm ccr.ccs.tencentyun.com/cube-studio/notebook:jupyter-ubuntu-bigdata cat /etc/os-release
+          
       - name: Generate Dockerfile
         run: |
           # 运行 laniksj/dfimage 逆向生成 Dockerfile，并重定向到仓库根目录
@@ -46,11 +51,19 @@ jobs:
           # 在本地创建文件夹来存放提取出的文件（保持部分目录结构方便查看）
           mkdir -p extracted_files/opt/third/maven/conf
           mkdir -p extracted_files/opt/third/hadoop/etc
+          mkdir -p extracted_files/opt/third/hive/conf
+          mkdir -p extracted_files/opt/third/flink
+          mkdir -p extracted_files/examples
           
           # 从容器中将所需文件拷贝到宿主机的本地目录
           docker cp temp_container:/init.sh ./extracted_files/
           docker cp temp_container:/opt/third/maven/conf/settings.xml ./extracted_files/opt/third/maven/conf/
           docker cp temp_container:/opt/third/hadoop/etc/hadoop ./extracted_files/opt/third/hadoop/etc/
+          
+          # 提取新发现的其他散落的配置文件和示例文件 (以防万一原作者写死了特殊逻辑)
+          docker cp temp_container:/opt/third/hive/conf/. ./extracted_files/opt/third/hive/conf/ 2>/dev/null || true
+          docker cp temp_container:/opt/third/flink/flink-conf.yaml ./extracted_files/opt/third/flink/ 2>/dev/null || true
+          docker cp temp_container:/examples/. ./extracted_files/examples/ 2>/dev/null || true
           
           # 清理临时容器
           docker rm temp_container
