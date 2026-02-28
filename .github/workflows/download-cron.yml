@@ -1,14 +1,10 @@
-name: Download Cron and Dependencies (CentOS/RHEL)
+name: Download Cron and Dependencies (CentOS 7)
 
 on:
   workflow_dispatch:
     inputs:
-      os_image:
-        description: 'Docker image to use (e.g., centos:7, rockylinux:8, rockylinux:9)'
-        required: true
-        default: 'centos:7'
       package_name:
-        description: 'Package name to download (e.g., cronie for CentOS)'
+        description: 'Package name to download (default is cronie for CentOS)'
         required: true
         default: 'cronie'
 
@@ -20,11 +16,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download packages using Docker container
+      - name: Download packages using CentOS 7 Docker container
         run: |
           mkdir -p offline-packages
           
-          # Create a script to run inside the CentOS/RHEL container
+          # Create a script to run inside the CentOS 7 container
           cat << 'EOF' > download.sh
           #!/bin/bash
           set -e
@@ -34,46 +30,40 @@ jobs:
           echo "Updating repositories and installing download tools..."
           
           # Fix CentOS 7 repos since it reached EOL and moved to vault
-          if grep -q "CentOS Linux 7" /etc/os-release 2>/dev/null; then
-            sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
-            sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
-            yum clean all
-            yum makecache
-            yum install -y yum-utils
-            echo "Downloading $PACKAGE_NAME and dependencies..."
-            yumdownloader --resolve --destdir=/output "$PACKAGE_NAME"
-          else
-            # For CentOS 8/9, RockyLinux, AlmaLinux
-            dnf install -y dnf-plugins-core
-            echo "Downloading $PACKAGE_NAME and dependencies..."
-            dnf download --resolve --alldeps --destdir=/output "$PACKAGE_NAME" || dnf download --resolve --destdir=/output "$PACKAGE_NAME"
-          fi
+          sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
+          sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
+          
+          yum clean all
+          yum makecache
+          yum install -y yum-utils
+          
+          echo "Downloading $PACKAGE_NAME and dependencies..."
+          # Download the package and its dependencies
+          yumdownloader --resolve --destdir=/output "$PACKAGE_NAME"
           EOF
           
           chmod +x download.sh
           
-          # Run the script inside the target OS container
+          # Run the script inside the CentOS 7 container
           docker run --rm \
             -v $(pwd)/offline-packages:/output \
             -v $(pwd)/download.sh:/download.sh \
-            ${{ github.event.inputs.os_image }} \
+            centos:7 \
             /download.sh "${{ github.event.inputs.package_name }}"
 
       - name: Package downloaded RPM files
         run: |
           echo "Compressing downloaded files..."
-          tar -czvf offline-packages.tar.gz -C offline-packages .
+          tar -czvf centos7-cron-offline-packages.tar.gz -C offline-packages .
 
       - name: Prepare safe artifact name
         id: prep
         run: |
-          IMAGE_NAME="${{ github.event.inputs.os_image }}"
-          SAFE_NAME="${IMAGE_NAME//:/-}"
-          echo "ARTIFACT_NAME=${{ github.event.inputs.package_name }}-offline-packages-${SAFE_NAME}" >> $GITHUB_ENV
+          echo "ARTIFACT_NAME=${{ github.event.inputs.package_name }}-centos7-offline" >> $GITHUB_ENV
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT_NAME }}
-          path: offline-packages.tar.gz
+          path: centos7-cron-offline-packages.tar.gz
           retention-days: 7
