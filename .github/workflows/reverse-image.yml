@@ -1,0 +1,62 @@
+name: Reverse Engineer Docker Image
+
+on:
+  workflow_dispatch: # 支持手动触发工作流
+
+jobs:
+  analyze-and-extract:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 允许 Action 提交代码到仓库
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Free up runner disk space
+        run: |
+          echo "Disk space before cleanup:"
+          df -h
+          
+          # 删除大体积的预装工具以释放 30GB+ 的磁盘空间
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          
+          echo "Disk space after cleanup:"
+          df -h
+
+      - name: Pull target Docker image
+        run: |
+          docker pull ccr.ccs.tencentyun.com/cube-studio/notebook:jupyter-ubuntu-bigdata
+
+      - name: Generate Dockerfile
+        run: |
+          # 运行 laniksj/dfimage 逆向生成 Dockerfile，并重定向到仓库根目录
+          docker run -v /var/run/docker.sock:/var/run/docker.sock --rm \
+            laniksj/dfimage ccr.ccs.tencentyun.com/cube-studio/notebook:jupyter-ubuntu-bigdata > Dockerfile.generated
+
+      - name: Extract key files from the image
+        run: |
+          # 创建临时容器而不启动它
+          docker create --name temp_container ccr.ccs.tencentyun.com/cube-studio/notebook:jupyter-ubuntu-bigdata
+          
+          # 在本地创建文件夹来存放提取出的文件（保持部分目录结构方便查看）
+          mkdir -p extracted_files/opt/third/maven/conf
+          mkdir -p extracted_files/opt/third/hadoop/etc
+          
+          # 从容器中将所需文件拷贝到宿主机的本地目录
+          docker cp temp_container:/init.sh ./extracted_files/
+          docker cp temp_container:/opt/third/maven/conf/settings.xml ./extracted_files/opt/third/maven/conf/
+          docker cp temp_container:/opt/third/hadoop/etc/hadoop ./extracted_files/opt/third/hadoop/etc/
+          
+          # 清理临时容器
+          docker rm temp_container
+
+      - name: Auto Commit changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Auto-extract Dockerfile and config files from remote image"
+          file_pattern: "Dockerfile.generated extracted_files/**"
