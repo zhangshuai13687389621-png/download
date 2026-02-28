@@ -1,0 +1,70 @@
+name: Download Custom Deb Packages from Native Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: 'Packages to download separated by space (e.g., cron vim)'
+        required: true
+        default: 'cron'
+
+jobs:
+  download-and-package:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Free up runner disk space
+        run: |
+          docker system prune -a -f
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+
+      - name: Create extraction directory
+        run: mkdir -p native-offline-packages
+
+      - name: Download packages strictly inside the target container
+        run: |
+          # The exact target image
+          IMAGE="ccr.ccs.tencentyun.com/cube-studio/notebook:jupyter-ubuntu-bigdata"
+          
+          # Pull the image
+          docker pull "$IMAGE"
+          
+          # We run a container to perform all the dependency tracking inside. It mounts our local folder to /offline 
+          docker run --rm -v $(pwd)/native-offline-packages:/offline --user root "$IMAGE" bash -c "
+            echo 'Updating apt repository...'
+            apt-get update
+            
+            echo 'Installing apt-rdepends and clean up cache to minimize space...'
+            apt-get install -y apt-rdepends
+            
+            cd /offline
+            
+            # Fetch all dependent package names recursively
+            PACKAGES=\$(apt-rdepends ${{ github.event.inputs.packages }} 2>/dev/null | grep -v '^ ')
+            
+            echo 'Downloading packages...'
+            for pkg in \$PACKAGES; do
+              # We use apt-get download inside the exact container OS
+              apt-get download \"\$pkg\" 2>/dev/null || echo \"Notice: Could not download \$pkg (virtual or exists).\"
+            done
+            ls -al /offline
+          "
+
+      - name: Package downloaded deb files
+        run: |
+          echo "Compressing downloaded files..."
+          tar -czvf native-ubuntu-packages.tar.gz -C native-offline-packages .
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-offline-packages
+          path: native-ubuntu-packages.tar.gz
+          retention-days: 7
