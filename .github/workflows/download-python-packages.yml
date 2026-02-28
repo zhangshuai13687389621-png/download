@@ -11,10 +11,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.8
+      - name: Set up Python 3.9.23
         uses: actions/setup-python@v5
         with:
-          python-version: '3.8'
+          python-version: '3.9.23'
 
       - name: Download python packages
         run: |
@@ -32,11 +32,11 @@ jobs:
       - name: Package downloaded wheel/tar.gz files
         run: |
           echo "Compressing downloaded Python files..."
-          tar -czvf ubuntu-python-3.8-offline-packages.tar.gz -C python-offline-packages .
+          tar -czvf ubuntu-python-3.9.23-offline-packages.tar.gz -C python-offline-packages .
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: my-offline-python-packages
-          path: ubuntu-python-3.8-offline-packages.tar.gz
+          path: ubuntu-python-3.9.23-offline-packages.tar.gz
           retention-days: 7
