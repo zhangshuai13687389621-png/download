@@ -1,0 +1,86 @@
+FROM <base image not found locally>
+ADD file:8733c7e8faf03d53cb2143ff6ac405362944cfa07422fccd21a3066cc2f42c83 in /
+CMD ["bash"]
+USER root
+/bin/sh -c apt update  \
+    && apt install -y --force-yes --no-install-recommends software-properties-common vim apt-transport-https gnupg2 ca-certificates-java rsync jq  wget git dnsutils iputils-ping net-tools curl mysql-client zip unzip locales ttf-wqy-microhei ttf-wqy-zenhei xfonts-wqy  \
+    &&     locale-gen zh_CN  \
+    && locale-gen zh_CN.utf8
+ENV LANG=zh_CN.UTF-8
+ENV LC_ALL=zh_CN.UTF-8
+ENV LANGUAGE=zh_CN.UTF-8
+/bin/sh -c echo "alias ll='ls -alF'" >> /root/.bashrc  \
+    &&     echo "alias la='ls -A'" >> /root/.bashrc  \
+    &&     echo "alias vi='vim'" >> /root/.bashrc  \
+    &&     /bin/bash -c "source /root/.bashrc"
+/bin/sh -c add-apt-repository -y ppa:deadsnakes/ppa  \
+    && apt update  \
+    && apt install -y  libsasl2-dev libpq-dev python3-pip
+/bin/sh -c apt install -y python3.8 python3.8-dev  \
+    && rm -rf /usr/bin/python3; ln -s /usr/bin/python3.8 /usr/bin/python3      \
+    && rm -rf /usr/bin/python;  ln -s /usr/bin/python3 /usr/bin/python
+/bin/sh -c bash -c "wget https://bootstrap.pypa.io/get-pip.py  \
+    && python get-pip.py --ignore-installed --force-reinstall"      \
+    && rm -rf /usr/bin/pip; ln -s /usr/bin/pip3 /usr/bin/pip
+/bin/sh -c pip install --upgrade pip  \
+    && pip install tornado gsutil simplejson sqlalchemy joblib scikit-learn jinja2 requests numpy pandas flask pymysql pysnooper pyyaml jupyterlab voila notebook  \
+    &&     rm -rf /tmp/* /var/tmp/* /root/.cache
+/bin/sh -c curl -sL https://deb.nodesource.com/setup_16.x | bash -
+/bin/sh -c apt-get install -y nodejs  \
+    && npm config set unicode false
+/bin/sh -c rm -rf /usr/bin/python;  ln -s /usr/bin/python3 /usr/bin/python
+/bin/sh -c jupyter labextension install @jupyter-widgets/jupyterlab-manager
+/bin/sh -c pip install --upgrade jupyterlab-git  \
+    && jupyter lab build
+/bin/sh -c apt install -y openssh-server openssh-client
+ENV NODE_HOME=/usr/local
+ENV PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ENV NODE_PATH=/usr/local/lib/node_modules:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ENV SHELL=/bin/bash
+COPY multi:45e57f797f0090f1b3dd1e174288a39c9fe558b6853ed5b56686688bb7b03598 in /examples/
+COPY file:3684f6fd02dd752d832290798ee55799c2f4c71c8da5b25bca70d7a2a9c3b2d0 in /init.sh
+MAINTAINER hamawhite
+/bin/sh -c apt-get update  \
+    && apt install -y lsof
+/bin/sh -c mkdir -p /opt/third  \
+    && cd /opt/third      \
+    && wget http://dlcdn.apache.org/spark/spark-3.1.3/spark-3.1.3-bin-hadoop3.2.tgz      \
+    && tar -xvzf spark-3.1.3-bin-hadoop3.2.tgz      \
+    && ln -s spark-3.1.3-bin-hadoop3.2 spark      \
+    && rm -rf spark-3.1.3-bin-hadoop3.2.tgz      \
+    && cd /opt/third/spark/conf      \
+    && mv spark-defaults.conf.template spark-defaults.conf      \
+    && pip install apache-flink==1.15.1      \
+    && rm -rf /usr/lib/jvm/      \
+    && apt-get install -y openjdk-8-jdk      \
+    && cd /opt/third      \
+    && wget http://dlcdn.apache.org/maven/maven-3/3.8.6/binaries/apache-maven-3.8.6-bin.tar.gz      \
+    && tar -xvzf apache-maven-3.8.6-bin.tar.gz      \
+    && ln -s apache-maven-3.8.6 maven      \
+    && rm -rf apache-maven-3.8.6-bin.tar.gz
+/bin/sh -c pip install pyquery requests lxml beautifulsoup4      \
+    && rm -rf /tmp/* /var/tmp/* /root/.cache
+/bin/sh -c pip install pymysql pika presto-python-client neo4j elasticsearch psycopg2-binary sqlalchemy torndb kafka paramiko prometheus_client oss2 happybase clickhouse-sqlalchemy clickhouse-driver pymongo presto-python-client      \
+    && rm -rf /tmp/* /var/tmp/* /root/.cache
+/bin/sh -c pip install numpy pandas sklearn wheel SciPy pyarrow Pillow PyML MDP Theano opencv-python plotly tqdm gbdt xgboost lightgbm      \
+    && rm -rf /tmp/* /var/tmp/* /root/.cache
+/bin/sh -c pip install matplotlib pyecharts      \
+    && rm -rf /tmp/* /var/tmp/* /root/.cache
+COPY multi:2bba6b52d602c3ecd9ad2be76a07b811f3a41efb0ee7611307125bbbe95444fb in /examples/
+COPY file:4b24d51fa4478f77f436ddf6040baebb108b67eff03736aa0d8ab7e69d7981ed in /opt/third/hive/conf/
+COPY multi:9ff6d96bb9c4283a0271ed7cb67d2385f2698543a1bd897265d3c5c8b2632ce1 in /opt/third/hadoop/etc/hadoop/
+COPY file:57fd230f6788276753c347959772e4392c280d88b86c3c3431990e69e6f75fae in /opt/third/flink/
+COPY file:0439f024571d4065352c84a0a5c4cdab6cb7a2cbb8951e6c4cb2158ba3e3ad84 in /opt/third/maven/conf/settings.xml
+ENV M2_HOME=/opt/third/maven
+ENV PATH=/opt/third/maven/bin:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+/bin/sh -c cd /opt/third/flink      \
+    && mkdir lib      \
+    && mvn -f flink-dep.xml dependency:copy-dependencies -DoutputDirectory=lib
+ENV HADOOP_CONF_DIR=/opt/third/hadoop/etc/hadoop
+ENV SPARK_HOME=/opt/third/spark
+ENV JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+ENV M2_HOME=/opt/third/maven
+ENV PATH=/opt/third/maven/bin:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/lib/jvm/java-8-openjdk-amd64/bin:/opt/third/maven/bin:/opt/third/spark/bin
+ENV PYTHONPATH=/opt/third/spark/python:/opt/third/spark/lib/py4j-0.10.9-src.zip:/opt/third/spark/lib/pyspark.zip:/opt/third/spark/lib/pyspark.zip:
+COPY file:a22866b66ff56815eca0b082a671ba3cb68eb466040bcc3733ce376875a8e8aa in /init.sh
+jupyter lab --notebook-dir=/ --ip=0.0.0.0 --no-browser --allow-root --port=3000 --NotebookApp.token= --NotebookApp.password= --NotebookApp.allow_origin=*
