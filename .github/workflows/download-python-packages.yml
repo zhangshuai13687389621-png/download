@@ -1,33 +1,20 @@
 name: Download Python Packages (Ubuntu)
 
 on:
-  workflow_dispatch:
-    inputs:
-      package_name:
-        description: 'Python package name to download (e.g., kazoo, requests)'
-        required: true
-        default: 'kazoo'
-      python_version:
-        description: 'Python version to use for downloading (e.g., 3.8, 3.9)'
-        required: true
-        default: '3.8'
-      os_version:
-        description: 'Ubuntu version for the runner (e.g. ubuntu-20.04, ubuntu-22.04, ubuntu-24.04)'
-        required: true
-        default: 'ubuntu-22.04'
+  workflow_dispatch: # 取消繁杂的变量输入，一键运行即可
 
 jobs:
   download-and-package:
-    runs-on: ${{ github.event.inputs.os_version }}
+    runs-on: ubuntu-20.04
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python ${{ github.event.inputs.python_version }}
+      - name: Set up Python 3.8
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ github.event.inputs.python_version }}
+          python-version: '3.8'
 
       - name: Download python packages
         run: |
@@ -37,24 +24,19 @@ jobs:
           echo "Upgrading pip..."
           python -m pip install --upgrade pip
           
-          echo "Downloading ${{ github.event.inputs.package_name }} and required packages (catboost, statsmodels, pyecharts) along with dependencies..."
-          python -m pip download "${{ github.event.inputs.package_name }}" catboost statsmodels pyecharts
+          echo "Downloading target packages (catboost, statsmodels, pyecharts) along with dependencies..."
+          python -m pip download catboost statsmodels pyecharts
           
           cd ..
 
       - name: Package downloaded wheel/tar.gz files
         run: |
           echo "Compressing downloaded Python files..."
-          tar -czvf ubuntu-python-${{ github.event.inputs.python_version }}-${{ github.event.inputs.package_name }}-offline.tar.gz -C python-offline-packages .
-
-      - name: Prepare safe artifact name
-        id: prep
-        run: |
-          echo "ARTIFACT_NAME=${{ github.event.inputs.package_name }}-py${{ github.event.inputs.python_version }}-ubuntu-offline" >> $GITHUB_ENV
+          tar -czvf ubuntu-python-3.8-offline-packages.tar.gz -C python-offline-packages .
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ARTIFACT_NAME }}
-          path: ubuntu-python-${{ github.event.inputs.python_version }}-${{ github.event.inputs.package_name }}-offline.tar.gz
+          name: my-offline-python-packages
+          path: ubuntu-python-3.8-offline-packages.tar.gz
           retention-days: 7
