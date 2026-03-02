@@ -41,8 +41,9 @@ RUN python -m pip install poetry==2.0.1 --no-cache-dir && \
 # ────────────────────────────────────────────────
 # 使用 Python 脚本自动下载 tiktoken 缓存
 # ────────────────────────────────────────────────
-RUN mkdir -p /tiktoken_cache && \
+RUN mkdir -p /tiktoken_cache && chmod 755 /tiktoken_cache && \
     TIKTOKEN_CACHE_DIR=/tiktoken_cache /api/.venv/bin/python -c "import tiktoken; tiktoken.get_encoding('cl100k_base'); tiktoken.get_encoding('o200k_base'); print('Tiktoken cache downloaded success')"
+
 
 
 FROM python:3.11-slim AS final
@@ -100,6 +101,9 @@ RUN echo '#!/bin/bash\n\
     export $(grep -v "^#" .env | xargs -r)\n\
     fi\n\
     \n\
+    # Explicitly set tiktoken cache dir for offline environments\n\
+    export TIKTOKEN_CACHE_DIR=/tiktoken_cache\n\
+    \n\
     # Check for required environment variables\n\
     if [ -z "$OPENAI_API_KEY" ] || [ -z "$GOOGLE_API_KEY" ]; then\n\
     echo "Warning: OPENAI_API_KEY and/or GOOGLE_API_KEY environment variables are not set."\n\
@@ -117,6 +121,7 @@ RUN echo '#!/bin/bash\n\
 ENV PORT=8001
 ENV NODE_ENV=production
 ENV SERVER_BASE_URL=http://localhost:${PORT:-8001}
+ENV TIKTOKEN_CACHE_DIR=/tiktoken_cache
 
 # Create empty .env file (will be overridden if one exists at runtime)
 RUN touch .env
