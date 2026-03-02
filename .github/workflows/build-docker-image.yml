@@ -13,6 +13,17 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          path: user-repo
+
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+        with:
+          repository: AsyncFuncAI/deepwiki-open
+          path: src-repo
+
+      - name: Copy custom Dockerfile
+        run: cp user-repo/Dockerfile src-repo/Dockerfile
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -23,8 +34,8 @@ jobs:
       - name: Build Docker image
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ./Dockerfile
+          context: src-repo
+          file: src-repo/Dockerfile
           platforms: linux/amd64
           tags: app-image:latest
           outputs: type=docker,dest=/tmp/docker-image-amd64.tar
