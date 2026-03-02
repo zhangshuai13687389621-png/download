@@ -5,18 +5,19 @@ ARG CUSTOM_CERT_DIR="certs"
 
 FROM node:20-alpine3.22 AS node_base
 
-FROM node_base AS node_deps
+FROM node:20-alpine3.22 AS node_deps
 WORKDIR /app
-COPY package.json package-lock.json ./
+# Install git to clone the repository
+RUN apk add --no-cache git && \
+    git clone https://github.com/AsyncFuncAI/deepwiki-open.git .
+
 RUN npm ci --legacy-peer-deps
 
-FROM node_base AS node_builder
+FROM node:20-alpine3.22 AS node_builder
 WORKDIR /app
-COPY --from=node_deps /app/node_modules ./node_modules
-# Copy only necessary files for Next.js build
-COPY package.json package-lock.json next.config.ts tsconfig.json tailwind.config.js postcss.config.mjs ./
-COPY src/ ./src/
-COPY public/ ./public/
+# Copy the cloned repository and dependencies
+COPY --from=node_deps /app ./
+
 # Increase Node.js memory limit for build and disable telemetry
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -24,8 +25,12 @@ RUN NODE_ENV=production npm run build
 
 FROM python:3.11-slim AS py_deps
 WORKDIR /api
-COPY api/pyproject.toml .
-COPY api/poetry.lock .
+# Install git to clone the repository
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN git clone https://github.com/AsyncFuncAI/deepwiki-open.git /repo && \
+    cp /repo/api/pyproject.toml . && \
+    cp /repo/api/poetry.lock .
+
 RUN python -m pip install poetry==2.0.1 --no-cache-dir && \
     poetry config virtualenvs.create true --local && \
     poetry config virtualenvs.in-project true --local && \
@@ -33,36 +38,16 @@ RUN python -m pip install poetry==2.0.1 --no-cache-dir && \
     POETRY_MAX_WORKERS=10 poetry install --no-interaction --no-ansi --only main && \
     poetry cache clear --all .
 
-# Use Python 3.11 as final image
-FROM python:3.11-slim
-
 # ────────────────────────────────────────────────
-# 预先下载 tiktoken 的编码文件（解决离线环境报错）
+# 使用 Python 脚本自动下载 tiktoken 缓存
 # ────────────────────────────────────────────────
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    wget \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+RUN mkdir -p /tiktoken_cache && \
+    TIKTOKEN_CACHE_DIR=/tiktoken_cache /api/.venv/bin/python -c "import tiktoken; tiktoken.get_encoding('cl100k_base'); tiktoken.get_encoding('o200k_base'); print('Tiktoken cache downloaded success')"
 
-RUN mkdir -p /tiktoken_cache && chmod 755 /tiktoken_cache
 
-# cl100k_base (常见于 gpt-3.5, gpt-4, embedding 等)
-RUN wget -q -O /tiktoken_cache/9b5ad71b2ce5302211f9c61530b329a4922fc6a4 \
-    https://openaipublic.blob.core.windows.net/encodings/cl100k_base.tiktoken
+FROM python:3.11-slim AS final
 
-# o200k_base (gpt-4o, o1, gpt-4o-mini 等新模型)
-RUN wget -q -O /tiktoken_cache/fb374d419588a4632f3f557e76b4b70aebbca790 \
-    https://openaipublic.blob.core.windows.net/encodings/o200k_base.tiktoken
-
-# 设置 tiktoken 使用本地缓存目录（避免任何网络请求）
 ENV TIKTOKEN_CACHE_DIR=/tiktoken_cache
-
-# 可选验证（构建时有网络的情况下可以打开，确认缓存有效）
-# RUN python -c "import tiktoken; tiktoken.get_encoding('cl100k_base'); tiktoken.get_encoding('o200k_base'); print('Tiktoken cache ready')"
-
-# ────────────────────────────────────────────────
-# 以下为原有内容，未做改动
-# ────────────────────────────────────────────────
 
 # Set working directory
 WORKDIR /app
@@ -95,9 +80,10 @@ RUN if [ -n "${CUSTOM_CERT_DIR}" ]; then \
 
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy Python dependencies
+# Copy Python dependencies and tiktoken cache
 COPY --from=py_deps /api/.venv /opt/venv
-COPY api/ ./api/
+COPY --from=py_deps /repo/api ./api/
+COPY --from=py_deps /tiktoken_cache /tiktoken_cache
 
 # Copy Node app
 COPY --from=node_builder /app/public ./public
