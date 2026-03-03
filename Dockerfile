@@ -42,13 +42,26 @@ RUN python -m pip install poetry==2.0.1 --no-cache-dir && \
 # 使用 Python 脚本自动下载 tiktoken 缓存
 # ────────────────────────────────────────────────
 RUN mkdir -p /tiktoken_cache && chmod 755 /tiktoken_cache && \
-    TIKTOKEN_CACHE_DIR=/tiktoken_cache /api/.venv/bin/python -c "import tiktoken; tiktoken.get_encoding('cl100k_base'); tiktoken.get_encoding('o200k_base'); print('Tiktoken cache downloaded success')"
+    TIKTOKEN_CACHE_DIR=/tiktoken_cache /api/.venv/bin/python -c "\
+    import tiktoken; \
+    e1 = tiktoken.get_encoding('cl100k_base'); \
+    e2 = tiktoken.get_encoding('o200k_base'); \
+    print('cl100k_base vocab size:', e1.n_vocab); \
+    print('o200k_base vocab size:', e2.n_vocab); \
+    print('Tiktoken cache downloaded successfully')"
+
+# 验证缓存文件确实写入了（如果是空的就让构建失败）
+RUN echo "=== Tiktoken cache files ===" && \
+    ls -la /tiktoken_cache/ && \
+    FILE_COUNT=$(ls /tiktoken_cache/ | wc -l) && \
+    echo "Cache file count: $FILE_COUNT" && \
+    test "$FILE_COUNT" -ge 2 || (echo "ERROR: tiktoken cache files NOT found! Expected >=2 files but got $FILE_COUNT" && exit 1)
 
 
-
+# ────────────────────────────────────────────────
+# Final image
+# ────────────────────────────────────────────────
 FROM python:3.11-slim AS final
-
-ENV TIKTOKEN_CACHE_DIR=/tiktoken_cache
 
 # Set working directory
 WORKDIR /app
@@ -86,6 +99,20 @@ COPY --from=py_deps /api/.venv /opt/venv
 COPY --from=py_deps /repo/api ./api/
 COPY --from=py_deps /tiktoken_cache /tiktoken_cache
 
+# ────────────────────────────────────────────────
+# 离线验证：确认 tiktoken 能从本地缓存加载，不联网
+# 如果验证失败，构建会报错退出
+# ────────────────────────────────────────────────
+RUN echo "=== Verifying tiktoken offline cache in final image ===" && \
+    ls -la /tiktoken_cache/ && \
+    TIKTOKEN_CACHE_DIR=/tiktoken_cache python -c "\
+    import tiktoken; \
+    enc1 = tiktoken.get_encoding('cl100k_base'); \
+    enc2 = tiktoken.get_encoding('o200k_base'); \
+    print('=== Offline tiktoken verification PASSED ==='); \
+    print('cl100k_base vocab size:', enc1.n_vocab); \
+    print('o200k_base vocab size:', enc2.n_vocab)"
+
 # Copy Node app
 COPY --from=node_builder /app/public ./public
 COPY --from=node_builder /app/.next/standalone ./
@@ -96,13 +123,19 @@ EXPOSE ${PORT:-8001} 3000
 
 # Create a script to run both backend and frontend
 RUN echo '#!/bin/bash\n\
+    # Ensure tiktoken cache dir is set (must be before .env loading)\n\
+    export TIKTOKEN_CACHE_DIR=/tiktoken_cache\n\
+    export DATA_GYM_CACHE_DIR=/tiktoken_cache\n\
+    \n\
     # Load environment variables from .env file if it exists\n\
     if [ -f .env ]; then\n\
+    # Save tiktoken cache dir before .env loading\n\
+    _SAVED_TIKTOKEN_CACHE_DIR="$TIKTOKEN_CACHE_DIR"\n\
     export $(grep -v "^#" .env | xargs -r)\n\
+    # Restore tiktoken cache dir (prevent .env from overriding it)\n\
+    export TIKTOKEN_CACHE_DIR="$_SAVED_TIKTOKEN_CACHE_DIR"\n\
+    export DATA_GYM_CACHE_DIR="$_SAVED_TIKTOKEN_CACHE_DIR"\n\
     fi\n\
-    \n\
-    # Explicitly set tiktoken cache dir for offline environments\n\
-    export TIKTOKEN_CACHE_DIR=/tiktoken_cache\n\
     \n\
     # Check for required environment variables\n\
     if [ -z "$OPENAI_API_KEY" ] || [ -z "$GOOGLE_API_KEY" ]; then\n\
@@ -122,6 +155,7 @@ ENV PORT=8001
 ENV NODE_ENV=production
 ENV SERVER_BASE_URL=http://localhost:${PORT:-8001}
 ENV TIKTOKEN_CACHE_DIR=/tiktoken_cache
+ENV DATA_GYM_CACHE_DIR=/tiktoken_cache
 
 # Create empty .env file (will be overridden if one exists at runtime)
 RUN touch .env
