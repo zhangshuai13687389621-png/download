@@ -27,6 +27,7 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64
           tags: app-image:latest
+          no-cache: true
           outputs: type=docker,dest=/tmp/docker-image-amd64.tar
 
       - name: Upload image artifact

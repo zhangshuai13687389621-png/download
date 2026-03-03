@@ -1,0 +1,77 @@
+﻿services:
+  opendeepwiki:
+    image: crpi-j9ha7sxwhatgtvj4.cn-shenzhen.personal.cr.aliyuncs.com/open-deepwiki/opendeepwiki
+    build:
+      context: .
+      dockerfile: src/OpenDeepWiki/Dockerfile
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    environment:
+      # ASP.NET Core 环境
+      - ASPNETCORE_ENVIRONMENT=Production
+
+      # 服务监听地址
+      - URLS=http://+:8080
+
+      # 数据库配置 (支持: sqlite, postgresql)
+      - DB_TYPE=sqlite
+      - CONNECTION_STRING=Data Source=/data/opendeepwiki.db
+
+      # JWT 认证配置 (生产环境请修改)
+      - JWT_SECRET_KEY=OpenDeepWiki-Default-Secret-Key-Please-Change-In-Production-Environment-2024
+
+      # 仓库存储目录
+      - REPOSITORIES_DIRECTORY=/data
+
+      # AI 服务配置 (全局默认，用于 Chat 等功能)
+      - CHAT_API_KEY=your-chat-api-key
+      - ENDPOINT=https://api.openai.com/v1
+      - CHAT_REQUEST_TYPE=OpenAI
+
+      # Wiki 生成器配置 - 目录生成
+      - WIKI_CATALOG_MODEL=gpt-4o
+      - WIKI_CATALOG_ENDPOINT=https://api.openai.com/v1
+      - WIKI_CATALOG_API_KEY=your-catalog-api-key
+      - WIKI_CATALOG_REQUEST_TYPE=OpenAI
+
+      # Wiki 生成器配置 - 内容生成
+      - WIKI_CONTENT_MODEL=gpt-4o
+      - WIKI_CONTENT_ENDPOINT=https://api.openai.com/v1
+      - WIKI_CONTENT_API_KEY=your-content-api-key
+      - WIKI_CONTENT_REQUEST_TYPE=OpenAI
+
+      # Wiki 生成器配置 - 翻译 (可选，不配置则使用内容生成配置)
+      # - WIKI_TRANSLATION_MODEL=gpt-4o
+      # - WIKI_TRANSLATION_ENDPOINT=https://api.openai.com/v1
+      # - WIKI_TRANSLATION_API_KEY=your-translation-api-key
+      # - WIKI_TRANSLATION_REQUEST_TYPE=OpenAI
+
+      # Wiki 生成并行数 (默认: 5)
+      - WIKI_PARALLEL_COUNT=5
+
+      # 多语言支持 (逗号分隔，如: en,zh,ja,ko)
+      - WIKI_LANGUAGES=en,zh
+    volumes:
+      - ./data:/data
+
+  web:
+    image: crpi-j9ha7sxwhatgtvj4.cn-shenzhen.personal.cr.aliyuncs.com/open-deepwiki/opendeepwiki-web
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    depends_on:
+      opendeepwiki:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - API_PROXY_URL=http://opendeepwiki:8080

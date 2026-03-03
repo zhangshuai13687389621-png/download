@@ -1,0 +1,43 @@
+name: Build and Export Compose Images
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build images using Docker Compose
+        run: docker compose -f compose.yaml build
+
+      - name: Save Docker images to tar files
+        run: |
+          docker save -o /tmp/opendeepwiki.tar crpi-j9ha7sxwhatgtvj4.cn-shenzhen.personal.cr.aliyuncs.com/open-deepwiki/opendeepwiki
+          docker save -o /tmp/opendeepwiki-web.tar crpi-j9ha7sxwhatgtvj4.cn-shenzhen.personal.cr.aliyuncs.com/open-deepwiki/opendeepwiki-web
+
+      - name: Upload opendeepwiki image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: opendeepwiki-image
+          path: /tmp/opendeepwiki.tar
+          retention-days: 7
+
+      - name: Upload web image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: opendeepwiki-web-image
+          path: /tmp/opendeepwiki-web.tar
+          retention-days: 7
