@@ -112,13 +112,15 @@ COPY --from=py_deps /tiktoken_cache /tiktoken_cache
 # ────────────────────────────────────────────────
 RUN echo "=== Verifying tiktoken offline cache in final image ===" && \
     ls -la /tiktoken_cache/ && \
-    TIKTOKEN_CACHE_DIR=/tiktoken_cache python -c "\
-    import tiktoken; \
-    enc1 = tiktoken.get_encoding('cl100k_base'); \
-    enc2 = tiktoken.get_encoding('o200k_base'); \
-    print('=== Offline tiktoken verification PASSED ==='); \
-    print('cl100k_base vocab size:', enc1.n_vocab); \
-    print('o200k_base vocab size:', enc2.n_vocab)"
+    echo 'import os; os.environ["TIKTOKEN_CACHE_DIR"] = "/tiktoken_cache"' > /tmp/verify_tiktoken.py && \
+    echo 'import tiktoken' >> /tmp/verify_tiktoken.py && \
+    echo 'enc1 = tiktoken.get_encoding("cl100k_base")' >> /tmp/verify_tiktoken.py && \
+    echo 'enc2 = tiktoken.get_encoding("o200k_base")' >> /tmp/verify_tiktoken.py && \
+    echo 'print("=== Offline tiktoken verification PASSED ===")' >> /tmp/verify_tiktoken.py && \
+    echo 'print("cl100k_base vocab size:", enc1.n_vocab)' >> /tmp/verify_tiktoken.py && \
+    echo 'print("o200k_base vocab size:", enc2.n_vocab)' >> /tmp/verify_tiktoken.py && \
+    python /tmp/verify_tiktoken.py && \
+    rm /tmp/verify_tiktoken.py
 
 # Copy Node app
 COPY --from=node_builder /app/public ./public
