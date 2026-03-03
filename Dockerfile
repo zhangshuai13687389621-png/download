@@ -41,21 +41,28 @@ RUN python -m pip install poetry==2.0.1 --no-cache-dir && \
 # ────────────────────────────────────────────────
 # 使用 Python 脚本自动下载 tiktoken 缓存
 # ────────────────────────────────────────────────
-RUN mkdir -p /tiktoken_cache && chmod 755 /tiktoken_cache && \
-    TIKTOKEN_CACHE_DIR=/tiktoken_cache /api/.venv/bin/python -c "\
-    import tiktoken; \
-    e1 = tiktoken.get_encoding('cl100k_base'); \
-    e2 = tiktoken.get_encoding('o200k_base'); \
-    print('cl100k_base vocab size:', e1.n_vocab); \
-    print('o200k_base vocab size:', e2.n_vocab); \
-    print('Tiktoken cache downloaded successfully')"
+RUN mkdir -p /tiktoken_cache && chmod 755 /tiktoken_cache
 
-# 验证缓存文件确实写入了（如果是空的就让构建失败）
-RUN echo "=== Tiktoken cache files ===" && \
-    ls -la /tiktoken_cache/ && \
-    FILE_COUNT=$(ls /tiktoken_cache/ | wc -l) && \
-    echo "Cache file count: $FILE_COUNT" && \
-    test "$FILE_COUNT" -ge 2 || (echo "ERROR: tiktoken cache files NOT found! Expected >=2 files but got $FILE_COUNT" && exit 1)
+# 先确认 tiktoken 和 requests 已安装
+RUN /api/.venv/bin/pip list 2>/dev/null | grep -i tiktoken && \
+    /api/.venv/bin/pip list 2>/dev/null | grep -i requests && \
+    echo "=== tiktoken and requests are installed ==="
+
+# 写入下载脚本并执行
+RUN echo 'import os; os.environ["TIKTOKEN_CACHE_DIR"] = "/tiktoken_cache"' > /tmp/dl_tiktoken.py && \
+    echo 'import tiktoken' >> /tmp/dl_tiktoken.py && \
+    echo 'e1 = tiktoken.get_encoding("cl100k_base")' >> /tmp/dl_tiktoken.py && \
+    echo 'e2 = tiktoken.get_encoding("o200k_base")' >> /tmp/dl_tiktoken.py && \
+    echo 'print("cl100k_base vocab size:", e1.n_vocab)' >> /tmp/dl_tiktoken.py && \
+    echo 'print("o200k_base vocab size:", e2.n_vocab)' >> /tmp/dl_tiktoken.py && \
+    echo 'import glob; files = glob.glob("/tiktoken_cache/*"); print("Cached files:", files)' >> /tmp/dl_tiktoken.py && \
+    echo 'assert len(files) >= 2, f"Expected >=2 cache files, got {len(files)}"' >> /tmp/dl_tiktoken.py && \
+    echo 'print("=== Tiktoken cache downloaded and verified ===")'  >> /tmp/dl_tiktoken.py && \
+    /api/.venv/bin/python /tmp/dl_tiktoken.py
+
+# 二次确认缓存文件存在
+RUN echo "=== Tiktoken cache files ===" && ls -la /tiktoken_cache/
+
 
 
 # ────────────────────────────────────────────────
