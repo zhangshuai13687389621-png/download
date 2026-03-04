@@ -12,7 +12,11 @@ on:
       git_ref:
         description: '要构建的 Git 引用（tag/branch/sha）'
         required: false
+<<<<<<< HEAD
         default: 'v2.0.1'
+=======
+        default: 'main'
+>>>>>>> f45fee1 (ci: 更新 build-opendeepwiki 工作流配置。)
         type: string
       push_registry:
         description: '是否推送到镜像仓库'
@@ -128,6 +132,25 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "📦 版本: ${VERSION}"
 
+<<<<<<< HEAD
+=======
+      - name: 修复前端构建依赖
+        working-directory: source/web
+        run: |
+          # 上游项目使用 bun.lock，没有 package-lock.json，npm ci 会失败
+          # 生成 package-lock.json 并修复 Dockerfile
+          echo "📦 生成 package-lock.json ..."
+          docker run --rm -v "$(pwd):/app" -w /app node:20-alpine sh -c "npm install --package-lock-only --legacy-peer-deps 2>/dev/null || true"
+          
+          # 如果仍然没有 package-lock.json，改用 npm install
+          if [ ! -f package-lock.json ]; then
+            echo "⚠️ 无法生成 package-lock.json，改用 npm install"
+            sed -i 's/RUN npm ci/RUN npm install --legacy-peer-deps/' Dockerfile
+          fi
+          
+          echo "✅ 前端依赖修复完成"
+
+>>>>>>> f45fee1 (ci: 更新 build-opendeepwiki 工作流配置。)
       - name: 设置 Docker Buildx
         uses: docker/setup-buildx-action@v3
 
