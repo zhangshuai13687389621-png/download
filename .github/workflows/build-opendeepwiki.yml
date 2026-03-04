@@ -29,7 +29,7 @@ on:
 
 env:
   UPSTREAM_REPO: https://github.com/AIDotNet/OpenDeepWiki.git
-  GIT_REF: ${{ inputs.git_ref || 'v2.0.1' }}
+  GIT_REF: ${{ inputs.git_ref || 'main' }}
   REGISTRY: crpi-j9ha7sxwhatgtvj4.cn-shenzhen.personal.cr.aliyuncs.com
   REGISTRY_NS: open-deepwiki
   BACKEND_IMAGE: opendeepwiki
@@ -133,22 +133,20 @@ jobs:
           echo "📦 版本: ${VERSION}"
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
       - name: 修复前端构建依赖
+=======
+      - name: 修复前端 Dockerfile（npm ci → npm install）
+>>>>>>> 47e738c (wu)
         working-directory: source/web
         run: |
-          # 上游项目使用 bun.lock，没有 package-lock.json，npm ci 会失败
-          # 生成 package-lock.json 并修复 Dockerfile
-          echo "📦 生成 package-lock.json ..."
-          docker run --rm -v "$(pwd):/app" -w /app node:20-alpine sh -c "npm install --package-lock-only --legacy-peer-deps 2>/dev/null || true"
-          
-          # 如果仍然没有 package-lock.json，改用 npm install
-          if [ ! -f package-lock.json ]; then
-            echo "⚠️ 无法生成 package-lock.json，改用 npm install"
-            sed -i 's/RUN npm ci/RUN npm install --legacy-peer-deps/' Dockerfile
-          fi
-          
-          echo "✅ 前端依赖修复完成"
+          # 上游项目使用 bun.lock，没有 package-lock.json
+          # npm ci 必须有 package-lock.json，所以无条件替换为 npm install
+          sed -i 's/RUN npm ci/RUN npm install --legacy-peer-deps/' Dockerfile
+          echo "✅ 已将 Dockerfile 中 npm ci 替换为 npm install --legacy-peer-deps"
+          echo "--- 修改后的 Dockerfile ---"
+          cat Dockerfile
 
 >>>>>>> f45fee1 (ci: 更新 build-opendeepwiki 工作流配置。)
       - name: 设置 Docker Buildx
