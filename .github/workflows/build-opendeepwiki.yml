@@ -132,13 +132,7 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "📦 版本: ${VERSION}"
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-      - name: 修复前端构建依赖
-=======
       - name: 修复前端 Dockerfile（npm ci → npm install）
->>>>>>> 47e738c (wu)
         working-directory: source/web
         run: |
           # 上游项目使用 bun.lock，没有 package-lock.json
@@ -147,8 +141,6 @@ jobs:
           echo "✅ 已将 Dockerfile 中 npm ci 替换为 npm install --legacy-peer-deps"
           echo "--- 修改后的 Dockerfile ---"
           cat Dockerfile
-
->>>>>>> f45fee1 (ci: 更新 build-opendeepwiki 工作流配置。)
       - name: 设置 Docker Buildx
         uses: docker/setup-buildx-action@v3
 
