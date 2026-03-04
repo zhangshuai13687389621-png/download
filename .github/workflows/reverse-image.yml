@@ -1,4 +1,4 @@
-name: Reverse Engineer Docker Image
+name: 逆向分析 Docker 镜像（生成 Dockerfile 和提取文件）- 2026-03-04
 
 on:
   workflow_dispatch: # 支持手动触发工作流

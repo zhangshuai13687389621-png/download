@@ -1,4 +1,4 @@
-name: Build DeepWiki Docker Image
+name: 构建 DeepWiki 镜像（Python + Next.js 全功能）- 2026-03-04
 
 on:
   # 每周一自动构建（跟踪上游更新）
